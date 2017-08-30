@@ -6,7 +6,7 @@
 2. 输入城市+天气，如:上海天气，查询天气。
 3. 更多功能，敬请期待……
 
-![演示](http://upload-images.jianshu.io/upload_images/688387-fe0b671e743a1398.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![image](http://upload-images.jianshu.io/upload_images/688387-fe0b671e743a1398.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/780)
 
 
 ## 功能演示
@@ -18,5 +18,4 @@
 
 ### 3、其他
 后续更新，敬请期待……
-
 
