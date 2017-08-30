@@ -57,7 +57,7 @@ class WeixinInterface:
         if msgType == 'text':
             content = xml.find("Content").text
             if content == 'help':
-                return self.render.reply_text(fromUser, toUser, int(time.time()), "1、输入指令，如:段子，看搞笑段子。\n2输入城市+天气，如:上海天气，查询天气。\n3、更多功能，敬请期待……")
+                return self.render.reply_text(fromUser, toUser, int(time.time()), "1、输入指令，如:段子，看搞笑段子。\n2、输入城市+天气，如:上海天气，查询天气。\n3、更多功能，敬请期待……")
             elif content == u"段子":
                 url_8 = "http://www.qiushibaike.com/"
                 url_24 = "http://www.qiushibaike.com/hot/"
