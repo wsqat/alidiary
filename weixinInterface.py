@@ -10,6 +10,9 @@ import re
 import random
 from urllib import urlencode
 import json
+import pylibmc
+import function
+import model
 import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -54,65 +57,77 @@ class WeixinInterface:
         msgType = xml.find("MsgType").text
         fromUser = xml.find("FromUserName").text
         toUser = xml.find("ToUserName").text
-        if msgType == 'text':
+        mc = pylibmc.Client()  # 初始化一个memcache实例用来保存用户的操作
+        # count = 0 # 记录聊天次数
+
+        if msgType == "event":
+            mscontent = xml.find("Event").text
+            if mscontent == "subscribe":
+                replayText = u'''欢迎关注本微信，这个微信是本人业余爱好所建立，也是想一边学习Python一边玩的东西,现在还没有太多功能，只有一些小玩意。你们有什么好的文章也欢迎反馈给我,我会不定期的分享给大家，输入'help'查看操作指令'''
+                return self.render.reply_text(fromUser, toUser, int(time.time()), replayText)
+            if mscontent == "unsubscribe":
+                replayText = u'我现在功能还很简单，知道满足不了您的需求，但是我会慢慢改进，欢迎您以后再来！'
+                return self.render.reply_text(fromUser, toUser, int(time.time()), replayText)
+        elif msgType == 'text':
             content = xml.find("Content").text
-            if content == 'help':
-                return self.render.reply_text(fromUser, toUser, int(time.time()), "1、输入指令，如:段子，看搞笑段子。\n2、输入城市+天气，如:上海天气，查询天气。\n3、更多功能，敬请期待……")
-            elif content == u"段子":
-                url_8 = "http://www.qiushibaike.com/"
-                url_24 = "http://www.qiushibaike.com/hot/"
-                headers = {
-                    'Connection': 'Keep-Alive',
-                    'Accept': 'text/html, application/xhtml+xml, */*',
-                    'Accept-Language': 'en-US,en;q=0.8,zh-Hans-CN;q=0.5,zh-Hans;q=0.3',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 6.3; WOW64; Trident/7.0; rv:11.0) like Gecko'}
-                req_8 = urllib2.Request(url_8, headers=headers)
-                req_24 = urllib2.Request(url_24, headers=headers)
-                opener_8 = urllib2.urlopen(req_8)
-                opener_24 = urllib2.urlopen(req_24)
-                html_8 = opener_8.read()
-                html_24 = opener_24.read()
-                rex = r'(?<=div class="content">).*?(?=<!--)'
-                m_8 = re.findall(rex, html_8, re.S)
-                m_24 = re.findall(rex, html_24, re.S)
-                m_8.extend(m_24)
-                random.shuffle(m_8)
-                text = m_8[0].replace('<br/>', '').replace('\n', '')
-                # print text 清洗<>标签
-                p = re.compile('<[^>]+>')
-                # print p.sub("", text)
-                return self.render.reply_text(fromUser, toUser, int(time.time()), p.sub("", text))
-            elif u"天气" in content:  # 天气功能判断，实现汉字查询天气,上海天气
-                # content = "上海天气"
-                cityname = content.split("天气")[0]
-                host = 'http://jisutqybmf.market.alicloudapi.com'
-                path = '/weather/query'
-                method = 'GET'
-                appcode = '7f21d6917d4245fab6c38172d04ef6c0'
-                # querys = 'city=%E5%AE%89%E9%A1%BA&citycode=citycode&cityid=cityid&ip=ip&location=location'
-                data = {'city': cityname}
-                querys = urlencode(data)
-                print querys
-                # querys = cityName+'&citycode=citycode&cityid=cityid&ip=ip&location=location'
-                # querys = cityName
-                bodys = {}
-                url = host + path + '?' + querys
-                request = urllib2.Request(url)
-                request.add_header('Authorization', 'APPCODE ' + appcode)
-                response = urllib2.urlopen(request)
-                content = response.read()
+            if content.startswith('fk'):
+                fktime = time.strftime('%Y-%m-%d %H:%M', time.localtime())
+                model.addfk(fromUser, fktime, content[3:].encode('utf-8'))
+                return self.render.reply_text(fromUser, toUser, int(time.time()), u'感谢您的反馈')
+            if content.lower() == 'bye':
+                byeTime = time.strftime('%Y-%m-%d %H:%M', time.localtime())
+                model.addChat(fromUser, byeTime, u'bye')
+                mc.delete(fromUser + '_ali')
+                return self.render.reply_text(fromUser, toUser, int(time.time()), u'您已经跳出了和小阿狸的交谈中，输入help来显示操作指令')
+            if content.lower() == 'ali':
+                startTime = time.strftime('%Y-%m-%d %H:%M', time.localtime())
+                model.addChat(fromUser, startTime, u'start')
+                mc.set(fromUser + '_ali', 'ali')
+                return self.render.reply_text(fromUser, toUser, int(time.time()),
+                                              u'您已经进入与小阿狸的交谈中，请尽情的蹂躏它吧！输入bye跳出与小阿狸的交谈')
+            # 读取memcache中的缓存数据
+            mcxhj = mc.get(fromUser + '_ali')
+            if mcxhj == 'ali':
+                beginTime = time.strftime('%Y-%m-%d %H:%M', time.localtime())
+                model.addChat(fromUser, str(beginTime), content.encode('utf-8'))
+                reply_text = function.chat(content,fromUser)
+                endTime = time.strftime('%Y-%m-%d %H:%M', time.localtime())
+                model.addChat("ali", endTime, reply_text.encode('utf-8'))
+                # fromUser = oO45c0iUoiaD0ApARWHTaWZomKas
+                if u'微信' in reply_text:
+                    reply_text = u"小阿狸脑袋出问题了，请换个问题吧~"
+                return self.render.reply_text(fromUser, toUser, int(time.time()), reply_text)
 
-                if content:
-                    data = json.loads(content)  # 使用json库将字符转化为字典
-                    res = data["result"]
-                    sport = res["index"][1]['detail']  #运动指数
-                    air = res["index"][5]['detail']  #空气指数
-                    clothes = res["index"][6]['detail']  #穿衣指数
-                    str_temp = ("%s，最低气温%s，最高气温%s。") % (res["weather"], res["templow"], res["temphigh"])  # 格式化字符
-                    output = u"主人，"+res["city"]+"的天气是：" + str_temp + "\n1、"+ sport+"\n2、"+air+"\n3、"+clothes  # 输出天气信息
-
+            # elif content == 'm': # 听音乐
+            #     musicdata = []
+            #     # musicdata = function.music()
+            #     musicList = [
+            #         [r'http://mp3.flash127.com/music/23472.mp3', u'消愁-毛不易', u'人生苦短何必念念不忘'],
+            #         [r'http://mp3.flash127.com/music/13533.mp3', u'演员-薛之谦', u'该配合你演出的我尽力在表演，像情感节目里的嘉宾任人挑选'],
+            #         [r'http://mp3.flash127.com/music/20972.mp3', u'暧昧-薛之谦', u'反正现在的感情 都暧昧'],
+            #         [r'http://mp3.flash127.com/music/7419.mp3', u'后来的我们-五月天', u'后来的我们 我期待着 泪水中能看到 你真的 自由了']
+            #     ]
+            #     musicdata = random.choice(musicList)
+            #     musicurl = musicdata[0]
+            #     musictitle = musicdata[1]
+            #     musicdes = musicdata[2]
+            #     return self.render.reply_music(fromUser, toUser, int(time.time()), musictitle, musicdes, musicurl)
+            if content == u"段子":
+                output = function.joke()
                 return self.render.reply_text(fromUser, toUser, int(time.time()), output)
-            elif content == u"你是谁":
-                return self.render.reply_text(fromUser, toUser, int(time.time()), "我是主人的小女友！")
+            if u"天气" in content:  # 天气功能判断，实现汉字查询天气,上海天气
+                # content = "上海天气"
+                output = function.weather(content)
+                return self.render.reply_text(fromUser, toUser, int(time.time()), output)
+            if content == u"你是谁":
+                return self.render.reply_text(fromUser, toUser, int(time.time()), "我是主人的小女友！\n 输入'help'看看如何正确的调戏我?")
+            if content == 'help':
+                output =function.help()
+                return self.render.reply_text(fromUser, toUser, int(time.time()), output)
+            if content[0:2] == 'fy':
+                content = content.encode('UTF-8')
+                Nword = function.youdao(content)
+                return self.render.reply_text(fromUser, toUser, int(time.time()), Nword)
             else:
                 return self.render.reply_text(fromUser, toUser, int(time.time()), "哎呀出错了 输入个help看看如何正确的调戏我？")
+

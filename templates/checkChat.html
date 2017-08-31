@@ -1,0 +1,17 @@
+$def with(chatContent)
+
+        <table border="1" align = center>
+            <tr>
+                <th>序号</th>
+                <th>用户</th>
+                <th>时间</th>
+                <th>聊天内容</th>
+            </tr>
+            $for item in chatContent:
+            <tr>
+                <td id="tdstyle">$item.id</td>
+                <td id="tdstyle">$item.userId</td>
+                <td id="tdstyle">$item.time</td>
+                <td id="tdstyle">$item.content</td>
+            </tr>
+        </table>
